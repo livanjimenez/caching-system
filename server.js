@@ -33,29 +33,37 @@ const cache = new NodeCache({ stdTTL: 0, checkperiod: 0 });
 (async () => {
   Object.keys(database.customers).forEach((customerId) => {
     const values = database.customers[customerId].purchaseHistory.items;
-    const convertToJSON = JSON.stringify(values);
-    cache.set(customerId, convertToJSON);
+    cache.set(customerId, values);
   });
 
-  console.log(cache.data);
+  const cachedKeys = cache.keys();
+  cachedKeys.forEach((key) => {
+    const cachedValue = cache.get(key);
+    console.log(
+      `Cached key: ${key}, value: ${JSON.stringify(cachedValue, null, 2)}`,
+    );
+  });
 })();
 
 function cacheAside(req, res, next) {
   const { id } = req.params;
 
   if (cache.has(id)) {
-    // cache hit, simply return the cached data
+    console.log('Cache hit');
     const cacheHit = cache.get(id);
     res.locals.data = cacheHit;
+    console.log(cache.data);
     return next();
   } else {
-    // cache miss, query the database
+    console.log('Cache miss');
     const query = cacheMissDatabase.customers[id]?.purchaseHistory?.items;
-    // store the data in cache
     if (query) {
+      cache.set(id, query);
+      res.locals.data = query;
+      return next();
     } else {
+      return res.status(404).json({ message: 'Customer not found' });
     }
-    // and return the data from the cache
   }
 }
 
@@ -65,72 +73,8 @@ function cacheEviction() {
   // if full, remove the least recently used item
 }
 
-app.get('/customers/:id/purchase-history', (req, res) => {
-  const { id } = req.params;
-
-  const cachedData = cache.get(id);
-  if (cachedData) {
-    console.log(`Cache hit for customer ${id}`);
-    console.log(cachedData);
-    return res.status(200).json(cachedData);
-  }
-
-  console.log(`Cache miss for customer ${id}`);
-  const customerData = database.customers[id]?.purchaseHistory?.items;
-
-  if (customerData) {
-    cache.set(id, customerData);
-    return res.status(200).json(customerData);
-  } else {
-    return res.status(404).json({ message: 'Customer not found' });
-  }
-});
-
-app.post('/customers', (req, res) => {
-  const { customerId, purchaseHistory } = req.body;
-
-  if (!customerId || !purchaseHistory) {
-    return res.status(400).json({ message: 'Invalid request body' });
-  }
-
-  database.customers[customerId] = { customerId, purchaseHistory };
-  cache.set(customerId, purchaseHistory.items);
-
-  return res.status(201).json({
-    message: 'Customer added',
-    customer: database.customers[customerId],
-  });
-});
-
-app.put('/customers/:id/purchase-history', (req, res) => {
-  const { id } = req.params;
-  const { items } = req.body;
-
-  if (!items) {
-    return res.status(400).json({ message: 'Invalid request body' });
-  }
-
-  if (!database.customers[id]) {
-    return res.status(404).json({ message: 'Customer not found' });
-  }
-
-  database.customers[id].purchaseHistory.items = items;
-  cache.set(id, items);
-
-  return res.status(200).json({ message: 'Purchase history updated', items });
-});
-
-app.delete('/customers/:id', (req, res) => {
-  const { id } = req.params;
-
-  if (!database.customers[id]) {
-    return res.status(404).json({ message: 'Customer not found' });
-  }
-
-  delete database.customers[id];
-  cache.del(id);
-
-  return res.status(200).json({ message: `Customer ${id} deleted` });
+app.get('/customers/:id/purchase-history', cacheAside, (req, res) => {
+  return res.status(200).json(res.locals.data);
 });
 
 app.listen(port, () => {
