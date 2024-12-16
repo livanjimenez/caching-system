@@ -26,7 +26,6 @@ import express from 'express';
 const app = express();
 const port = 3000;
 
-// Middleware to parse JSON requests
 app.use(express.json());
 
 const cache = new NodeCache({ stdTTL: 0, checkperiod: 0 });
