@@ -19,7 +19,7 @@
 // TODO: implement cache invalidation strategy
 // TODO: implement cache eviction strategy
 
-import { database } from './mock/database.js';
+import { database, cacheMissDatabase } from './mock/database.js';
 import NodeCache from 'node-cache';
 import express from 'express';
 
@@ -32,17 +32,42 @@ const cache = new NodeCache({ stdTTL: 0, checkperiod: 0 });
 
 (async () => {
   Object.keys(database.customers).forEach((customerId) => {
-    cache.set(
-      customerId,
-      database.customers[customerId].purchaseHistory.items[0]
-    );
+    const values = database.customers[customerId].purchaseHistory.items;
+    const convertToJSON = JSON.stringify(values);
+    cache.set(customerId, convertToJSON);
   });
+
+  console.log(cache.data);
 })();
+
+function cacheAside(req, res, next) {
+  const { id } = req.params;
+
+  if (cache.has(id)) {
+    // cache hit, simply return the cached data
+    const cacheHit = cache.get(id);
+    res.locals.data = cacheHit;
+    return next();
+  } else {
+    // cache miss, query the database
+    const query = cacheMissDatabase.customers[id]?.purchaseHistory?.items;
+    // store the data in cache
+    if (query) {
+    } else {
+    }
+    // and return the data from the cache
+  }
+}
+
+function cacheEviction() {
+  // implement LRU cache eviction strategy
+  // check if cache is full
+  // if full, remove the least recently used item
+}
 
 app.get('/customers/:id/purchase-history', (req, res) => {
   const { id } = req.params;
 
-  // Check the cache for the customer's data
   const cachedData = cache.get(id);
   if (cachedData) {
     console.log(`Cache hit for customer ${id}`);
@@ -50,7 +75,6 @@ app.get('/customers/:id/purchase-history', (req, res) => {
     return res.status(200).json(cachedData);
   }
 
-  // Cache miss: Fetch from database and store in cache
   console.log(`Cache miss for customer ${id}`);
   const customerData = database.customers[id]?.purchaseHistory?.items;
 
@@ -70,7 +94,7 @@ app.post('/customers', (req, res) => {
   }
 
   database.customers[customerId] = { customerId, purchaseHistory };
-  cache.set(customerId, purchaseHistory.items); // Update cache
+  cache.set(customerId, purchaseHistory.items);
 
   return res.status(201).json({
     message: 'Customer added',
@@ -91,7 +115,7 @@ app.put('/customers/:id/purchase-history', (req, res) => {
   }
 
   database.customers[id].purchaseHistory.items = items;
-  cache.set(id, items); // Update cache
+  cache.set(id, items);
 
   return res.status(200).json({ message: 'Purchase history updated', items });
 });
@@ -104,7 +128,7 @@ app.delete('/customers/:id', (req, res) => {
   }
 
   delete database.customers[id];
-  cache.del(id); // Remove from cache
+  cache.del(id);
 
   return res.status(200).json({ message: `Customer ${id} deleted` });
 });
