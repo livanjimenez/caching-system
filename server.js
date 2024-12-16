@@ -16,6 +16,9 @@
 // * 4. cache eviction
 // LRU (Least Recently Used) - remove least recently used items
 
+// TODO: implement cache invalidation strategy
+// TODO: implement cache eviction strategy
+
 import { database } from './mock/database.js';
 import NodeCache from 'node-cache';
 import express from 'express';
@@ -37,9 +40,6 @@ const cache = new NodeCache({ stdTTL: 0, checkperiod: 0 });
   });
 })();
 
-console.log(cache.data);
-console.log(cache.getStats());
-
 app.get('/customers/:id/purchase-history', (req, res) => {
   const { id } = req.params;
 
@@ -47,6 +47,7 @@ app.get('/customers/:id/purchase-history', (req, res) => {
   const cachedData = cache.get(id);
   if (cachedData) {
     console.log(`Cache hit for customer ${id}`);
+    console.log(cachedData);
     return res.status(200).json(cachedData);
   }
 
