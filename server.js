@@ -96,5 +96,3 @@ app.get('/customers/:id/purchase-history', cacheAside, (req, res) => {
 app.listen(port, () => {
   console.log(`listening at http://localhost:${port}`);
 });
-
-export default app;
