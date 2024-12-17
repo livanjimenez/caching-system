@@ -1,4 +1,4 @@
-export const database = {
+const database = {
   customers: {
     1: {
       customerId: 1,
@@ -70,3 +70,5 @@ export const database = {
     },
   },
 };
+
+module.exports = database;
